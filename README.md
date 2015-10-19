@@ -24,12 +24,16 @@ Workflow
 
 1. Capture data
 
-    # tcpdump -i eth0 -w dump.pcap port 3306
+```
+# tcpdump -i eth0 -w dump.pcap port 3306
+```
 
 2. Convert your data to a tab dilimtered file with tshark
 3. Replay the statements
 
-    $ ./go-mysql-replay -f my_workload.dat
+```
+$ ./go-mysql-replay -f my_workload.dat
+```
 
 To combine steps 2 and 3:
 
