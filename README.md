@@ -35,7 +35,7 @@ Workflow
 $ ./go-mysql-replay -f my_workload.dat
 ```
 
-To combine steps 2 and 3:
+To combine steps 1 and 2:
 
     $ sudo tshark -i lo -Y mysql.query -d tcp.port==5709,mysql -e tcp.stream -e frame.time_epoch -e mysql.query -Tfields
     Running as user "root" and group "root". This could be dangerous.
