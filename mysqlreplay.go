@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/csv"
+	"encoding/json"
 	"flag"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
@@ -18,6 +19,10 @@ type ReplayStatement struct {
 	stmt    string
 }
 
+type Configuration struct {
+	Dsn string
+}
+
 func timefromfloat(epoch float64) (time.Time) {
 	epoch_base := math.Floor(epoch)
 	epoch_frac := epoch - epoch_base
@@ -25,10 +30,10 @@ func timefromfloat(epoch float64) (time.Time) {
 	return epoch_time
 }
 
-func mysqlsession(c <-chan ReplayStatement, session int, firstepoch float64, starttime time.Time) {
+func mysqlsession(c <-chan ReplayStatement, session int, firstepoch float64, starttime time.Time, config Configuration) {
 	fmt.Printf("NEW SESSION (session: %d)\n", session)
 
-	db, err := sql.Open("mysql", "msandbox:msandbox@tcp(127.0.0.1:5709)/test")
+	db, err := sql.Open("mysql", config.Dsn)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -57,6 +62,14 @@ func mysqlsession(c <-chan ReplayStatement, session int, firstepoch float64, sta
 }
 
 func main() {
+	conffile, _ := os.Open("go-mysql-replay.conf.json")
+        confdec := json.NewDecoder(conffile)
+        config := Configuration{}
+        err := confdec.Decode(&config)
+        if err != nil {
+		fmt.Printf("Error reading configuration from './go-mysql-replay.conf.json': %s\n", err)
+        }
+
 	fileflag := flag.String("f", "./test.dat", "Path to datafile for replay")
 	flag.Parse()
 
@@ -94,7 +107,7 @@ func main() {
 		} else {
 			sess := make(chan ReplayStatement)
 			sessions[pkt.session] = sess
-			go mysqlsession(sessions[pkt.session], pkt.session, firstepoch, starttime)
+			go mysqlsession(sessions[pkt.session], pkt.session, firstepoch, starttime, config)
 			sessions[pkt.session] <- pkt
 		}
 	}

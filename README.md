@@ -10,7 +10,7 @@ Requirements
 ============
 
 * MySQL
-* go (if building from source)
+* go (if building from source, best with 1.5)
 * tshark (optional, to capturing and convert network traffic)
 * tcpdump (optional, to capture network traffic)
 * Access to the network interface to capture.
