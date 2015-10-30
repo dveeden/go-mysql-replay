@@ -83,6 +83,5 @@ The to capture the statements:
 TODO
 ====
 
-* The parameters for the MySQL connection are hardcoded.
 * Better handle the default database of each connection (hardcoded now).
 * `-E quote=d` does not escape quotes: [Wireshark Bug #10284](https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=10284)
