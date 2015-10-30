@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"time"
+	"math"
 )
 
 type ReplayStatement struct {
@@ -17,21 +18,37 @@ type ReplayStatement struct {
 	stmt    string
 }
 
-func mysqlsession(c <-chan ReplayStatement, session int, last_stmt_epoch float64) {
+func timefromfloat(epoch float64) (time.Time) {
+	epoch_base := math.Floor(epoch)
+	epoch_frac := epoch - epoch_base
+	epoch_time := time.Unix(int64(epoch_base),int64(epoch_frac*1000000000))
+	return epoch_time
+}
+
+func mysqlsession(c <-chan ReplayStatement, session int, firstepoch float64, starttime time.Time) {
+	fmt.Printf("NEW SESSION (session: %d)\n", session)
+
 	db, err := sql.Open("mysql", "msandbox:msandbox@tcp(127.0.0.1:5709)/test")
 	if err != nil {
 		panic(err.Error())
 	}
 	defer db.Close()
+
+	last_stmt_epoch := firstepoch
 	for {
 		pkt := <-c
 		if last_stmt_epoch != 0.0 {
-			sleeptime := time.Duration(pkt.epoch-last_stmt_epoch) * time.Second
-			fmt.Printf("Sleeptime: %s\n", sleeptime)
-			time.Sleep(sleeptime)
+			firsttime := timefromfloat(firstepoch)
+			pkttime := timefromfloat(pkt.epoch)
+			delaytime_orig := pkttime.Sub(firsttime)
+			mydelay := time.Since(starttime)
+			delaytime_new := delaytime_orig - mydelay
+
+			fmt.Printf("[session %d] Sleeptime: %s\n", session, delaytime_new)
+			time.Sleep(delaytime_new)
 		}
 		last_stmt_epoch = pkt.epoch
-		fmt.Printf("STATEMENT REPLAY (session: %d): %s\n", session, pkt.stmt)
+		fmt.Printf("[session %d] STATEMENT REPLAY: %s\n", session, pkt.stmt)
 		_, err := db.Exec(pkt.stmt)
 		if err != nil {
 			panic(err.Error())
@@ -56,7 +73,8 @@ func main() {
 		fmt.Println(err)
 	}
 
-	var startepoch float64 = 0.0
+	var firstepoch float64 = 0.0
+	starttime := time.Now()
 	sessions := make(map[int]chan ReplayStatement)
 	for _, stmt := range pktData {
 		sessionid, err := strconv.Atoi(stmt[0])
@@ -68,15 +86,15 @@ func main() {
 			fmt.Println(err)
 		}
 		pkt := ReplayStatement{session: sessionid, epoch: epoch, stmt: stmt[2]}
-		if startepoch == 0.0 {
-			startepoch = pkt.epoch
+		if firstepoch == 0.0 {
+			firstepoch = pkt.epoch
 		}
 		if sessions[pkt.session] != nil {
 			sessions[pkt.session] <- pkt
 		} else {
 			sess := make(chan ReplayStatement)
 			sessions[pkt.session] = sess
-			go mysqlsession(sessions[pkt.session], pkt.session, startepoch)
+			go mysqlsession(sessions[pkt.session], pkt.session, firstepoch, starttime)
 			sessions[pkt.session] <- pkt
 		}
 	}
