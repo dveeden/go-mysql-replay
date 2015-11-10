@@ -19,6 +19,14 @@ Requirements
 Note that wireshark/tshark should be able to decode SSL/TLS if you give it
  your key and configure MySQL to not use Diffie-Hellman.
 
+Building
+========
+
+This should build a static binary with Go 1.5
+```
+$ go build -tags netgo
+```
+
 Workflow
 ========
 
