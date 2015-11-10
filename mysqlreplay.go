@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
+	"math"
 	"os"
 	"strconv"
 	"time"
-	"math"
 )
 
 type ReplayStatement struct {
@@ -23,10 +23,10 @@ type Configuration struct {
 	Dsn string
 }
 
-func timefromfloat(epoch float64) (time.Time) {
+func timefromfloat(epoch float64) time.Time {
 	epoch_base := math.Floor(epoch)
 	epoch_frac := epoch - epoch_base
-	epoch_time := time.Unix(int64(epoch_base),int64(epoch_frac*1000000000))
+	epoch_time := time.Unix(int64(epoch_base), int64(epoch_frac*1000000000))
 	return epoch_time
 }
 
@@ -56,19 +56,25 @@ func mysqlsession(c <-chan ReplayStatement, session int, firstepoch float64, sta
 		fmt.Printf("[session %d] STATEMENT REPLAY: %s\n", session, pkt.stmt)
 		_, err := db.Exec(pkt.stmt)
 		if err != nil {
-			panic(err.Error())
+			if mysqlError, ok := err.(*mysql.MySQLError); ok {
+				if mysqlError.Number == 1205 { // Lock wait timeout
+					fmt.Printf("ERROR IGNORED: %s", err.Error())
+				}
+			} else {
+				panic(err.Error())
+			}
 		}
 	}
 }
 
 func main() {
 	conffile, _ := os.Open("go-mysql-replay.conf.json")
-        confdec := json.NewDecoder(conffile)
-        config := Configuration{}
-        err := confdec.Decode(&config)
-        if err != nil {
+	confdec := json.NewDecoder(conffile)
+	config := Configuration{}
+	err := confdec.Decode(&config)
+	if err != nil {
 		fmt.Printf("Error reading configuration from './go-mysql-replay.conf.json': %s\n", err)
-        }
+	}
 
 	fileflag := flag.String("f", "./test.dat", "Path to datafile for replay")
 	flag.Parse()
