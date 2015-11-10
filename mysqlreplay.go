@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/go-sql-driver/mysql"
+	"io"
 	"math"
 	"os"
 	"strconv"
@@ -30,7 +31,8 @@ func timefromfloat(epoch float64) time.Time {
 	return epoch_time
 }
 
-func mysqlsession(c <-chan ReplayStatement, session int, firstepoch float64, starttime time.Time, config Configuration) {
+func mysqlsession(c <-chan ReplayStatement, session int, firstepoch float64,
+	starttime time.Time, config Configuration) {
 	fmt.Printf("NEW SESSION (session: %d)\n", session)
 
 	db, err := sql.Open("mysql", config.Dsn)
@@ -49,16 +51,19 @@ func mysqlsession(c <-chan ReplayStatement, session int, firstepoch float64, sta
 			mydelay := time.Since(starttime)
 			delaytime_new := delaytime_orig - mydelay
 
-			fmt.Printf("[session %d] Sleeptime: %s\n", session, delaytime_new)
+			fmt.Printf("[session %d] Sleeptime: %s\n", session,
+				delaytime_new)
 			time.Sleep(delaytime_new)
 		}
 		last_stmt_epoch = pkt.epoch
-		fmt.Printf("[session %d] STATEMENT REPLAY: %s\n", session, pkt.stmt)
+		fmt.Printf("[session %d] STATEMENT REPLAY: %s\n", session,
+			pkt.stmt)
 		_, err := db.Exec(pkt.stmt)
 		if err != nil {
 			if mysqlError, ok := err.(*mysql.MySQLError); ok {
 				if mysqlError.Number == 1205 { // Lock wait timeout
-					fmt.Printf("ERROR IGNORED: %s", err.Error())
+					fmt.Printf("ERROR IGNORED: %s",
+						err.Error())
 				}
 			} else {
 				panic(err.Error())
@@ -73,10 +78,12 @@ func main() {
 	config := Configuration{}
 	err := confdec.Decode(&config)
 	if err != nil {
-		fmt.Printf("Error reading configuration from './go-mysql-replay.conf.json': %s\n", err)
+		fmt.Printf("Error reading configuration from "+
+			"'./go-mysql-replay.conf.json': %s\n", err)
 	}
 
-	fileflag := flag.String("f", "./test.dat", "Path to datafile for replay")
+	fileflag := flag.String("f", "./test.dat",
+		"Path to datafile for replay")
 	flag.Parse()
 
 	datFile, err := os.Open(*fileflag)
@@ -87,15 +94,17 @@ func main() {
 	reader := csv.NewReader(datFile)
 	reader.Comma = '\t'
 
-	pktData, err := reader.ReadAll()
-	if err != nil {
-		fmt.Println(err)
-	}
-
 	var firstepoch float64 = 0.0
 	starttime := time.Now()
 	sessions := make(map[int]chan ReplayStatement)
-	for _, stmt := range pktData {
+	for {
+		stmt, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			panic(err.Error)
+		}
 		sessionid, err := strconv.Atoi(stmt[0])
 		if err != nil {
 			fmt.Println(err)
@@ -104,7 +113,8 @@ func main() {
 		if err != nil {
 			fmt.Println(err)
 		}
-		pkt := ReplayStatement{session: sessionid, epoch: epoch, stmt: stmt[2]}
+		pkt := ReplayStatement{session: sessionid, epoch: epoch,
+			stmt: stmt[2]}
 		if firstepoch == 0.0 {
 			firstepoch = pkt.epoch
 		}
@@ -113,7 +123,8 @@ func main() {
 		} else {
 			sess := make(chan ReplayStatement)
 			sessions[pkt.session] = sess
-			go mysqlsession(sessions[pkt.session], pkt.session, firstepoch, starttime, config)
+			go mysqlsession(sessions[pkt.session], pkt.session,
+				firstepoch, starttime, config)
 			sessions[pkt.session] <- pkt
 		}
 	}
