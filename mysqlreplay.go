@@ -18,6 +18,7 @@ type ReplayStatement struct {
 	session int
 	epoch   float64
 	stmt    string
+	cmd     uint8
 }
 
 type Configuration struct {
@@ -56,17 +57,25 @@ func mysqlsession(c <-chan ReplayStatement, session int, firstepoch float64,
 			time.Sleep(delaytime_new)
 		}
 		last_stmt_epoch = pkt.epoch
-		fmt.Printf("[session %d] STATEMENT REPLAY: %s\n", session,
-			pkt.stmt)
-		_, err := db.Exec(pkt.stmt)
-		if err != nil {
-			if mysqlError, ok := err.(*mysql.MySQLError); ok {
-				if mysqlError.Number == 1205 { // Lock wait timeout
-					fmt.Printf("ERROR IGNORED: %s",
-						err.Error())
+		switch pkt.cmd {
+		case 14: // Ping
+			continue
+		case 1: // Quit
+			fmt.Printf("[session %d] COMMAND REPLAY: QUIT\n", session)
+			return
+		case 3: // Query
+			fmt.Printf("[session %d] STATEMENT REPLAY: %s\n", session,
+				pkt.stmt)
+			_, err := db.Exec(pkt.stmt)
+			if err != nil {
+				if mysqlError, ok := err.(*mysql.MySQLError); ok {
+					if mysqlError.Number == 1205 { // Lock wait timeout
+						fmt.Printf("ERROR IGNORED: %s",
+							err.Error())
+					}
+				} else {
+					panic(err.Error())
 				}
-			} else {
-				panic(err.Error())
 			}
 		}
 	}
@@ -109,12 +118,17 @@ func main() {
 		if err != nil {
 			fmt.Println(err)
 		}
+		cmd_src, err := strconv.Atoi(stmt[2])
+		if err != nil {
+			fmt.Println(err)
+		}
+		cmd := uint8(cmd_src)
 		epoch, err := strconv.ParseFloat(stmt[1], 64)
 		if err != nil {
 			fmt.Println(err)
 		}
 		pkt := ReplayStatement{session: sessionid, epoch: epoch,
-			stmt: stmt[2]}
+			cmd: cmd, stmt: stmt[3]}
 		if firstepoch == 0.0 {
 			firstepoch = pkt.epoch
 		}

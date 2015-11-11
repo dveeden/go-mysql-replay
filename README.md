@@ -45,8 +45,9 @@ Workflow
 2. Convert your data to a tab dilimtered file with tshark
 
 ```
-$ tshark -r mysql.pcap -Y mysql.query -e tcp.stream -e frame.time_epoch \
-> -e mysql.query -Tfields -E quote=d > my_workload.dat
+$ tshark -r mysql.pcap -Y mysql.query -Y mysql.command -e tcp.stream \
+> -e frame.time_epoch -e mysql.command -e mysql.query \
+> -Tfields -E quote=d > my_workload.dat
 ```
 
 3. Replay the statements
@@ -57,16 +58,17 @@ $ ./go-mysql-replay -f my_workload.dat
 
 To combine steps 1 and 2:
 
-    $ sudo tshark -i lo -Y mysql.query -e tcp.stream -e frame.time_epoch \
-    > -e mysql.query -Tfields -E quote=d
+    $ sudo tshark -i lo -Y mysql.query -Y mysql.command -e tcp.stream \
+    > -e frame.time_epoch -e mysql.command -e mysql.query \
+    > -Tfields -E quote=d
     Running as user "root" and group "root". This could be dangerous.
     Capturing on 'Loopback'
-    0	1445166898.745198000	select @@version_comment limit 1
-    0	1445166898.745338000	SELECT VERSION()
-    0	1445166898.745516000	SELECT CURRENT_TIMESTAMP
-    1	1445166923.496890000	select @@version_comment limit 1
-    1	1445166923.497021000	SELECT VERSION()
-    1	1445166923.497140000	SELECT CURRENT_TIMESTAMP
+    "0"	"1445166898.745198000" 	"3" "select @@version_comment limit 1"
+    "0"	"1445166898.745338000" 	"3" "SELECT VERSION()"
+    "0"	"1445166898.745516000" 	"3" "SELECT CURRENT_TIMESTAMP"
+    "1"	"1445166923.496890000" 	"3" "select @@version_comment limit 1"
+    "1"	"1445166923.497021000" 	"3" "SELECT VERSION()"
+    "1"	"1445166923.497140000" 	"3" "SELECT CURRENT_TIMESTAMP"
     ^C1 packet dropped
     6 packets captured
 
@@ -76,6 +78,8 @@ port 5709 as mysql.
 
 Using Performance Schema
 ========================
+
+Note: this has not been tested/updated after v0.1 yet. So this is missing the command column.
 
 You need to enable the consumer for one or more events statements tables. You
 might want to adjust `performance_schema_events_statements_history_long_size`
