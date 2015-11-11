@@ -40,6 +40,7 @@ func mysqlsession(c <-chan ReplayStatement, session int, firstepoch float64,
 	if err != nil {
 		panic(err.Error())
 	}
+	dbopen := true
 	defer db.Close()
 
 	last_stmt_epoch := firstepoch
@@ -62,10 +63,19 @@ func mysqlsession(c <-chan ReplayStatement, session int, firstepoch float64,
 			continue
 		case 1: // Quit
 			fmt.Printf("[session %d] COMMAND REPLAY: QUIT\n", session)
-			return
+			dbopen = false
+			db.Close()
 		case 3: // Query
+			if dbopen == false {
+				fmt.Printf("[session %d] RECONNECT\n", session)
+				db, err = sql.Open("mysql", config.Dsn)
+				if err != nil {
+					panic(err.Error())
+				}
+				dbopen = true
+			}
 			fmt.Printf("[session %d] STATEMENT REPLAY: %s\n", session,
-				pkt.stmt)
+				   pkt.stmt)
 			_, err := db.Exec(pkt.stmt)
 			if err != nil {
 				if mysqlError, ok := err.(*mysql.MySQLError); ok {
