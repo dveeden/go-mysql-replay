@@ -34,7 +34,7 @@ func timefromfloat(epoch float64) time.Time {
 
 func mysqlsession(c <-chan ReplayStatement, session int, firstepoch float64,
 	starttime time.Time, config Configuration) {
-	fmt.Printf("NEW SESSION (session: %d)\n", session)
+	fmt.Printf("[session %d] NEW SESSION\n", session)
 
 	db, err := sql.Open("mysql", config.Dsn)
 	if err != nil {
